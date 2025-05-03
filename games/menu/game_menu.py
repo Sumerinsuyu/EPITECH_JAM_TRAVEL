@@ -28,8 +28,8 @@ class GameMenu(arcade.View):
         self.random_offset_std_dev = 30
         self.min_speed_factor = 0.9
         self.max_speed_factor = 1.5
-        self.display_map_path = os.path.join(os.path.dirname(__file__), "assets", "earthmap.jpg")
-        self.color_map_path = os.path.join(os.path.dirname(__file__), "assets", "backmap.jpg")
+        self.display_map_path = os.path.join(os.path.dirname(__file__), "assets", "blue.png")
+        self.color_map_path = os.path.join(os.path.dirname(__file__), "assets", "blue.png")
         try:
             self.color_pil_image = Image.open(self.color_map_path).convert("RGB")
         except FileNotFoundError:
@@ -64,6 +64,8 @@ class GameMenu(arcade.View):
             10, self.window.height - 30 if self.window else 700,
             arcade.color.WHITE, font_size=16
         )
+        self.waiting_for_view_score = False
+        self.current_game_instance = None
 
     def _create_color_map(self) -> dict[Tuple[int, int, int], IGame]:
         """Creates a dictionary mapping game colors (RGB tuples) to game instances."""
@@ -88,7 +90,25 @@ class GameMenu(arcade.View):
         """Called when switching to this view."""
         arcade.set_background_color(arcade.color.BLACK)
         self._resize_background()
-        self.reset_state()
+
+        if self.waiting_for_view_score:
+            score = 0
+            if hasattr(self.window, 'last_game_score'):
+                score = getattr(self.window, 'last_game_score', 0)
+                try:
+                    delattr(self.window, 'last_game_score')
+                except AttributeError:
+                    pass
+            else:
+                print("Warning: Returned from View game but no 'last_game_score' found on window.")
+
+            self._process_score_and_advance_turn(score, self.current_game_instance)
+
+            self.waiting_for_view_score = False
+            self.current_game_instance = None
+        else:
+            if self.current_turn == 1 and self.player1_score == 0 and self.player2_score == 0:
+                 self.reset_state()
 
     def reset_state(self):
         """Resets the game state to the beginning."""
@@ -108,6 +128,8 @@ class GameMenu(arcade.View):
         self.vertical_cursor_direction = random.choice([1, -1])
         self.horizontal_cursor_speed = self.horizontal_cursor_speed_base * random.uniform(self.min_speed_factor, self.max_speed_factor)
         self.vertical_cursor_speed = self.vertical_cursor_speed_base * random.uniform(self.min_speed_factor, self.max_speed_factor)
+        self.waiting_for_view_score = False
+        self.current_game_instance = None
 
     def _draw_horizontal_bar(self):
         """Draws the horizontal selection bar."""
@@ -187,7 +209,7 @@ class GameMenu(arcade.View):
 
     def on_update(self, delta_time):
         """Update game state."""
-        if self.state == "selecting":
+        if self.state == "selecting" and not self.waiting_for_view_score:
             self._update_horizontal_cursor(delta_time)
             self._update_vertical_cursor(delta_time)
 
@@ -205,65 +227,81 @@ class GameMenu(arcade.View):
         final_target_y = max(0, min(screen_height - 1, final_target_y))
         return (final_target_x, final_target_y)
 
+    def _process_score_and_advance_turn(self, score, selected_game):
+        """Helper method to update score, advance turn, and set messages."""
+        game_name = selected_game.get_name() if selected_game else "Unknown Game"
+
+        if self.current_player == 1:
+            self.player1_score += score
+        else:
+            self.player2_score += score
+
+        if self.current_turn >= self.max_turns and self.current_player == 2:
+            self.state = "game_over"
+            final_message = f"Game Over!\nPlayer 1 Score: {self.player1_score}\nPlayer 2 Score: {self.player2_score}\n"
+            if self.player1_score > self.player2_score:
+                final_message += "Player 1 Wins!"
+            elif self.player2_score > self.player1_score:
+                final_message += "Player 2 Wins!"
+            else:
+                final_message += "It's a Tie!"
+            final_message += "\nPress SPACE to play again."
+            self.result_message = final_message
+        else:
+            if self.current_player == 2:
+                self.current_turn += 1
+            previous_player = self.current_player
+            self.current_player = 2 if self.current_player == 1 else 1
+
+            game_name_display = game_name if game_name != "Unknown Game" else "the last game"
+
+            self.result_message = (f"Player {previous_player} played '{game_name_display}' and scored {score}!\n"
+                                   f"Player {self.current_player}'s turn ({self.current_turn}/{self.max_turns}).\n"
+                                   f"Press SPACE to continue selecting.")
+            self.state = "result_displayed"
+
     def _perform_throw(self):
-        """Gets the color at the hit point, looks up the game, updates score, and advances turn."""
+        """Gets the color at the hit point, looks up the game, launches it via run(), and handles score/turn advancement."""
         if not self.window or self.hit_point is None:
-            self.result_message = "Error: Hit point not calculated."
+            self.result_message = "Error: Cannot perform throw without window or hit point.\nPress SPACE to try again."
             self.state = "result_displayed"
             return
-
-        screen_width = self.window.width
-        screen_height = self.window.height
-        final_target_x, final_target_y = self.hit_point
-        hit_color_rgb = None
-        selected_game = None
 
         if self.color_pil_image:
             try:
                 img_width, img_height = self.color_pil_image.size
-                map_x = max(0, min(img_width - 1, int((final_target_x / screen_width) * img_width)))
-                map_y = max(0, min(img_height - 1, int(((screen_height - final_target_y) / screen_height) * img_height)))
-                hit_color_rgb = self.color_pil_image.getpixel((map_x, map_y))
-                selected_game = self.game_color_map.get(hit_color_rgb)
+                map_x = int((self.hit_point[0] / self.window.width) * img_width)
+                map_y = int((self.hit_point[1] / self.window.height) * img_height)
+                map_x = max(0, min(img_width - 1, map_x))
+                map_y = max(0, min(img_height - 1, map_y))
+
+                rgb = self.color_pil_image.getpixel((map_x, map_y))
+
+                selected_game = self.game_color_map.get(rgb)
 
                 if selected_game:
-                    score = selected_game.run(self.window)
+                    game_name = selected_game.get_name()
+                    self.window.game_menu_view_instance = self
 
-                    if self.current_player == 1:
-                        self.player1_score += score
-                    else:
-                        self.player2_score += score
+                    score_or_none = selected_game.run(self.window)
 
-                    if self.current_turn >= self.max_turns:
-                        self.state = "game_over"
-                        final_message = f"Game Over!\nPlayer 1 Score: {self.player1_score}\nPlayer 2 Score: {self.player2_score}\n"
-                        if self.player1_score > self.player2_score:
-                            final_message += "Player 1 Wins!"
-                        elif self.player2_score > self.player1_score:
-                            final_message += "Player 2 Wins!"
-                        else:
-                            final_message += "It's a Tie!"
-                        final_message += "\nPress SPACE to play again."
-                        self.result_message = final_message
+                    if score_or_none is None:
+                        self.waiting_for_view_score = True
+                        self.current_game_instance = selected_game
+                        self.state = "in_game"
+                        self.result_message = f"Player {self.current_player} playing '{game_name}'..."
                     else:
-                        self.current_turn += 1
-                        self.current_player = 2 if self.current_player == 1 else 1
-                        self.result_message = (f"Player {3 - self.current_player} scored {score}!\n"
-                                               f"Player {self.current_player}'s turn ({self.current_turn}/{self.max_turns}).\n"
-                                               f"Press SPACE to continue selecting.")
-                        self.state = "result_displayed"
+                        self._process_score_and_advance_turn(score_or_none, selected_game)
+                        if hasattr(self.window, 'game_menu_view_instance'):
+                             delattr(self.window, 'game_menu_view_instance')
 
                 else:
-                    self.result_message = (f"Hit color {hit_color_rgb}.\nNo game is mapped here.\n"
-                                           f"Player {self.current_player} throws again.\nPress SPACE to try again.")
+                    self.result_message = f"Hit color {rgb}, but no game is mapped to it.\nTry again!\nPress SPACE to continue selecting."
                     self.state = "result_displayed"
 
-            except IndexError:
-                 self.result_message = "Error: Hit point outside map bounds.\nPress SPACE to try again."
-                 self.state = "result_displayed"
             except Exception as e:
-                 self.result_message = f"An error occurred: {e}\nPress SPACE to try again."
-                 self.state = "result_displayed"
+                self.result_message = f"An error occurred during throw: {e}\nPress SPACE to try again."
+                self.state = "result_displayed"
         else:
             self.result_message = "Error: Color map image not loaded.\nCannot determine location.\nPress SPACE to try again."
             self.state = "result_displayed"
@@ -283,6 +321,9 @@ class GameMenu(arcade.View):
 
     def on_key_press(self, key, modifiers):
         """Handle key presses based on state."""
+        if self.waiting_for_view_score:
+            return
+
         if key == arcade.key.SPACE:
             if self.state == "selecting":
                 self._handle_selecting_press()
@@ -305,7 +346,8 @@ class GameMenu(arcade.View):
             elif self.state == "game_over":
                  self.reset_state()
         elif key == arcade.key.ESCAPE:
-             self.reset_state()
+             if self.state in ["selecting", "displaying_hit", "result_displayed"]:
+                 self.reset_state()
 
 if __name__ == "__main__":
     class DummyGame(IGame):

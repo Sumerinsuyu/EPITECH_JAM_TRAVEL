@@ -31,4 +31,4 @@ class SmallGame(IGame, arcade.View):
         return "Small Game"
 
     def get_color(self):
-        return Color(254, 0,  0)
+        return Color(0, 254,  0)

@@ -43,9 +43,10 @@ class EuropaGame(IGame, arcade.View):
         if self.glass_sprite: self.glass_list.append(self.glass_sprite)
 
     def on_show_view(self):
+        self._init_state() # Reset all game state variables
         arcade.set_background_color(arcade.color.BLACK)
         self._setup_positions()
-        self._reset_beer()
+        self._reset_beer() # This might be partially redundant now, but safe to keep
 
     def _setup_positions(self):
         if not self.window or not self.glass_sprite: return

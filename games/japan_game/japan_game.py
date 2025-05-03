@@ -4,156 +4,205 @@ import os
 from abc import ABC, abstractmethod
 from typing import Tuple
 
-class JapanGame(IGame):
+from games.IGame import IGame
+from arcade.types import Rect
+
+class JapanGame(IGame, arcade.View):
     def __init__(self):
-        self.screen_width = 800
-        self.screen_height = 600
+        super().__init__()
+
         self.title = "Japan - Sushi Rampage"
-        self.sushi_list = arcade.SpriteList()
+        self.assets_path = os.path.join(os.path.dirname(__file__), "assets")
+        self.score = 0
+        self.sushi_health = 8
+        self.sushi_speed = 600
         self.spawn_timer = 0
         self.spawn_interval = 1.5
-        self.score = 0
-        self.cut_sound = None
+        self.game_over_text = "GAME OVER!"
+        self.background_texture = arcade.load_texture(
+            os.path.join(self.assets_path, "japangamebg.jpg")
+        )
+        self.background_rect = Rect(0, self.window.width, self.window.height, 0, self.window.width, self.window.height, self.window.width / 2, self.window.height / 2)
+        self.sushi_list = arcade.SpriteList()
         self.cut_sprites = arcade.SpriteList()
         self.cut_timers = []
-        self.rect_color = arcade.color.RED
-        self.sushi_speed = 600
-        self.sushi_health = 8
-        self.game_over_text = "GAME OVER!"
-        self.view = None
-        self.assets_path = os.path.join(os.path.dirname(__file__), "assets")
+        self.cut_sound = None
+        self.life_sprites = arcade.SpriteList()
+        self._load_assets()
+
+    def _load_assets(self):
+        """Load game assets (background, sounds)"""
+        try:
+            self.cut_sound = arcade.load_sound(
+                os.path.join(self.assets_path, "cut.wav")
+            )
+        except:
+            pass
+
 
     def get_name(self) -> str:
         return "Sushi Rampage"
 
     def get_color(self) -> Tuple[int, int, int]:
-        return (255, 50, 50)  # Red color for Japan
+        return (255, 0, 254)
 
     def run(self, window: arcade.Window) -> int:
-        """Run the game and return the score."""
-        self.view = JapanGameView(self)
-        window.show_view(self.view)
-        window.run()  # This will block until the game is done
+        """Run the game and return the score"""
+        window.show_view(self)
+        self.setup()
         return self.score
 
     def setup(self):
-        """Setup the game state."""
-        self.sushi_list = arcade.SpriteList()
-        self.spawn_timer = 0
+        """Initialize game state"""
         self.score = 0
-        self.rect_color = arcade.color.RED
+        self.sushi_health = 6
         self.sushi_speed = 600
-        self.sushi_health = 8
-        try:
-            self.cut_sound = arcade.load_sound(os.path.join(self.assets_path, "cut.wav"))
-        except Exception:
-            self.cut_sound = None
-
-class JapanGameView(arcade.View):
-    def __init__(self, game: JapanGame):
-        super().__init__()
-        self.game = game
+        self.sushi_list = arcade.SpriteList()
+        self.cut_sprites = arcade.SpriteList()
+        self.cut_timers = []
         self.window.set_mouse_visible(True)
+        self._update_life_sprites()
 
     def on_draw(self):
+        """Render the game"""
         self.clear()
-        if self.game.sushi_health <= 0:
-            arcade.draw_text(self.game.game_over_text, 
-                           self.game.screen_width / 2, 
-                           self.game.screen_height / 2, 
-                           arcade.color.WHITE, 24, 
-                           anchor_x="center", anchor_y="center")
+        arcade.draw_texture_rect(self.background_texture, self.background_rect)
+        if self.sushi_health <= 0:
+            arcade.draw_text(
+                self.game_over_text,
+                self.window.width / 2,
+                self.window.height / 2,
+                arcade.color.BLACK, 24,
+                anchor_x="center",
+                anchor_y="center"
+            )
             return
         
-        arcade.draw_text("Press space to be a sushi sensei", 
-                        200, 550, arcade.color.WHITE, 16)
-        arcade.draw_text(f"Score : {self.game.score}", 
-                        10, 10, arcade.color.WHITE, 14)
-        arcade.draw_lrbt_rectangle_outline(0, self.game.screen_width, 
-                                          100, 150, 
-                                          self.game.rect_color, 2)
-        self.game.sushi_list.draw()
-        self.game.cut_sprites.draw()
+        arcade.draw_text(
+            "    Press SPACE to slice the sushi!",
+            self.window.width * 0.25,
+            self.window.height * 0.85,
+            arcade.color.BLACK, 46
+        )
+        
+        arcade.draw_text(
+            f"Score: {self.score}",
+            10,
+            self.window.height - 65,
+            arcade.color.BLACK, 50
+        )
+        
+        arcade.draw_lrbt_rectangle_outline(
+            0, self.window.width,
+            100, 150,
+            self.rect_color, 2
+        )
+        
+        self.sushi_list.draw()
+        self.cut_sprites.draw()
+        self.life_sprites.draw()
 
     def on_update(self, delta_time):
-        self.game.rect_color = arcade.color.RED 
+        """Game logic update"""
+        self.rect_color = arcade.color.RED 
 
-        if self.game.sushi_health > 0:
-            self.game.spawn_timer += delta_time
-            if self.game.spawn_timer >= self.game.spawn_interval:
-                x = random.randint(50, self.game.screen_width - 50)
-                sushi = Sushi(x, self.game.screen_height)
-                sushi.speed = self.game.sushi_speed
-                self.game.sushi_list.append(sushi)
-                self.game.spawn_timer = 0
-                
-            for sushi in self.game.sushi_list:
-                sushi.update(delta_time)
-                
-            for sushi in self.game.sushi_list:
+        if self.sushi_health > 0:
+            self.spawn_timer += delta_time
+            if self.spawn_timer >= self.spawn_interval:
+                x = random.randint(50, self.window.width - 50)
+                self._spawn_sushi(x, self.window.height)
+                self.spawn_timer = 0
+
+            for sushi in self.sushi_list:
+                sushi.center_y -= self.sushi_speed * delta_time
                 if sushi.center_y < 0:
-                    self.game.sushi_list.remove(sushi)
-                    self.game.sushi_health -= 1
-                    
-            for sprite in self.game.cut_sprites:
-                sprite.center_x += sprite.change_x * delta_time
-                sprite.center_y -= 50 * delta_time
+                    self.sushi_list.remove(sushi)
+                    self.sushi_health -= 1
+                    self._update_life_sprites()
+            
+            self._update_cut_pieces(delta_time)
+            
+            if any(100 < sushi.center_y < 150 for sushi in self.sushi_list):
+                self.rect_color = arcade.color.WHITE
 
-            for i in range(len(self.game.cut_timers)):
-                self.game.cut_timers[i] -= delta_time
+    def _update_life_sprites(self):
+        """Met à jour les icônes de vies affichées."""
+        self.life_sprites = arcade.SpriteList()
+        spacing = 10
+        icon_path = os.path.join(self.assets_path, "sakurahealth.png")  # Remplace par ton image
+    
+        sample_sprite = arcade.Sprite(icon_path, scale=0.3)
+        icon_width = sample_sprite.width
+        total_width = self.sushi_health * icon_width + (self.sushi_health - 1) * spacing
+        start_x = (self.window.width - total_width) / 2
+        y = 40
 
-            expired_indices = [i for i, t in enumerate(self.game.cut_timers) if t <= 0]
-            for index in reversed(expired_indices):
-                self.game.cut_sprites.pop(index)
-                self.game.cut_timers.pop(index)
-                
-            for sushi in self.game.sushi_list:
-                if sushi.is_in_cut_zone():
-                    self.game.rect_color = arcade.color.WHITE
-                    break
+        for i in range(self.sushi_health):
+            x = start_x + i * (icon_width + spacing)
+            sprite = arcade.Sprite(icon_path, scale=0.17)
+            sprite.center_x = x
+            sprite.center_y = y
+            self.life_sprites.append(sprite)
+
+    def _spawn_sushi(self, x, y):
+        """Create new sushi at position"""
+        sushi = arcade.Sprite(
+            os.path.join(self.assets_path, "sushi.png"), 
+            scale=0.35
+        )
+        sushi.center_x = x
+        sushi.center_y = y
+        self.sushi_list.append(sushi)
+
+    def _update_cut_pieces(self, delta_time):
+        """Update cut sushi pieces"""
+        for sprite in self.cut_sprites:
+            sprite.center_x += sprite.change_x * delta_time
+            sprite.center_y -= 50 * delta_time
+
+        self.cut_timers = [t - delta_time for t in self.cut_timers]
+        while self.cut_timers and self.cut_timers[0] <= 0:
+            self.cut_sprites.pop(0)
+            self.cut_timers.pop(0)
 
     def on_key_press(self, key, modifiers):
+        """Handle keyboard input"""
         if key == arcade.key.SPACE:
-            for sushi in self.game.sushi_list:
-                if sushi.is_in_cut_zone():
-                    self.game.sushi_list.remove(sushi)
-                    self.game.score += 1
-                    self.game.sushi_speed += 50
-
-                    left = arcade.Sprite(os.path.join(self.game.assets_path, "sushi_half_left.png"), 
-                                        scale=0.5)
-                    left.center_x = sushi.center_x
-                    left.center_y = sushi.center_y
-                    left.change_x = -150
-
-                    right = arcade.Sprite(os.path.join(self.game.assets_path, "sushi_half_right.png"), 
-                                         scale=0.5)
-                    right.center_x = sushi.center_x
-                    right.center_y = sushi.center_y
-                    right.change_x = 150
-
-                    self.game.cut_sprites.append(left)
-                    self.game.cut_sprites.append(right)
-                    self.game.cut_timers.append(0.5)
-                    self.game.cut_timers.append(0.5)
-
-                    if self.game.cut_sound:
-                        arcade.play_sound(self.game.cut_sound)
-                    break
+            self._attempt_cut()
         elif key == arcade.key.ESCAPE:
-            # Return to menu
             self.window.show_view(self.window.game_menu_view_instance)
 
-class Sushi(arcade.Sprite):
-    def __init__(self, x, y):
-        super().__init__(os.path.join(os.path.dirname(__file__), "assets", "sushi.png"), 
-                         scale=0.35)
-        self.center_x = x
-        self.center_y = y
-        self.speed = 600  # pixels/sec
+    def _attempt_cut(self):
+        """Try to cut sushi in the cut zone"""
+        for sushi in self.sushi_list:
+            if 100 < sushi.center_y < 150:
+                self._cut_sushi(sushi)
+                break
 
-    def update(self, delta_time: float = 1/60):
-        self.center_y -= self.speed * delta_time
+    def _cut_sushi(self, sushi):
+        """Cut a sushi into pieces"""
+        self.sushi_list.remove(sushi)
+        self.score += 1
+        self.sushi_speed += 50
 
-    def is_in_cut_zone(self):
-        return 100 < self.center_y < 150
+        left = arcade.Sprite(
+            os.path.join(self.assets_path, "sushi_half_left.png"),
+            scale=0.5
+        )
+        left.center_x = sushi.center_x
+        left.center_y = sushi.center_y
+        left.change_x = -150
+
+        right = arcade.Sprite(
+            os.path.join(self.assets_path, "sushi_half_right.png"),
+            scale=0.5
+        )
+        right.center_x = sushi.center_x
+        right.center_y = sushi.center_y
+        right.change_x = 150
+
+        self.cut_sprites.extend([left, right])
+        self.cut_timers.extend([0.5, 0.5])
+
+        if self.cut_sound:
+            arcade.play_sound(self.cut_sound)

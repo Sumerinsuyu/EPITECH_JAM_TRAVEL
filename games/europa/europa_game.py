@@ -8,8 +8,11 @@ from arcade.types import Color
 class EuropaGame(IGame, arcade.View):
     def __init__(self):
         super().__init__(window=None)
-        self.score = 0
-        self.game_state = "IDLE" # States: IDLE, FILLING, STOPPED, DONE
+        self.score = 0 # Score for the current attempt (0 or 1)
+        self.round_score = 0 # Total score for the 5 beers
+        self.current_beer_index = 0 # Index of the current beer (0-4)
+        self.total_beers = 5 # Total number of beers to fill
+        self.game_state = "IDLE" # States: IDLE, FILLING, STOPPED, BETWEEN_BEERS, ROUND_OVER, DONE
 
         # Sprites
         self.background_list = arcade.SpriteList() # New list for background
@@ -40,6 +43,9 @@ class EuropaGame(IGame, arcade.View):
         self.beer_fill_rate = 0 # Initial fill rate, randomized on start
         self.beer_color = arcade.color.YELLOW
         self.beer_width_ratio = 0.35# How wide the beer rect is compared to glass (Reduced from 0.8)
+        # Add missing margin ratio initializations
+        self.beer_fillable_bottom_margin_ratio = 0.1 # Ratio of glass height for bottom margin
+        self.beer_fillable_top_margin_ratio = 0.1 # Ratio of glass height for top margin
 
         # Target line properties
         self.target_line_y = 0 # Calculated in on_show_view
@@ -71,7 +77,7 @@ class EuropaGame(IGame, arcade.View):
         # Calculate beer max level based on glass sprite's height (adjust if glass base exists)
         # Assuming the fillable area starts slightly above the bottom and ends slightly below the top
         fillable_area_ratio = 0.7
-        self.beer_max_level = self.glass_sprite.height * (fillable_area_ratio * 0.8)
+        self.beer_max_level = self.glass_sprite.height * (fillable_area_ratio * 0.7)
 
         # Randomize target line position
         # Y position is relative to the bottom of the fillable area
@@ -80,10 +86,12 @@ class EuropaGame(IGame, arcade.View):
         self.target_line_y = fillable_bottom_y + (self.beer_max_level * self.target_line_height_ratio)
 
         # Reset game state variables
-        self.beer_level = 0 # Ensure beer level starts at 0
+        self.beer_level = 0
         self.score = 0
+        self.round_score = 0
+        self.current_beer_index = 0
         self.game_state = "IDLE"
-        self.result_text.text = "Hold SPACE to fill"
+        self.result_text.text = f"Beer {self.current_beer_index + 1}/{self.total_beers}: Hold SPACE to fill"
         self.result_text.x = self.window.width / 2
         self.result_text.y = self.glass_sprite.top + 30
 
@@ -144,29 +152,56 @@ class EuropaGame(IGame, arcade.View):
                 self.stop_filling() # Auto-stop if overflow
 
 
+    def setup_next_beer(self):
+        """Resets the state for the next beer attempt."""
+        self.beer_level = 0
+        self.score = 0 # Reset score for the new attempt
+
+        # Randomize target line position for the new beer
+        self.target_line_height_ratio = random.uniform(0.3, 0.9)
+        fillable_bottom_y = self.glass_sprite.bottom + (self.glass_sprite.height * self.beer_fillable_bottom_margin_ratio)
+        self.target_line_y = fillable_bottom_y + (self.beer_max_level * self.target_line_height_ratio)
+
+        self.game_state = "IDLE"
+        self.result_text.text = f"Beer {self.current_beer_index + 1}/{self.total_beers}: Hold SPACE to fill"
+        # Ensure text position is updated if needed (might not be necessary if static)
+        self.result_text.x = self.window.width / 2
+        self.result_text.y = self.glass_sprite.top + 30
+
     def start_filling(self):
         if self.game_state == "IDLE":
             self.beer_level = 0 # Reset just in case
             self.game_state = "FILLING"
             # Set a random fill rate each time filling starts
             self.beer_fill_rate = random.uniform(150, 300) # Faster range (e.g., 150-300 pixels/sec)
-            self.result_text.text = "Release SPACE to stop"
+            self.result_text.text = f"Beer {self.current_beer_index + 1}/{self.total_beers}: Release SPACE to stop"
 
     def stop_filling(self):
         if self.game_state == "FILLING":
-            self.game_state = "STOPPED"
-            # Calculate score
-            fillable_bottom_y = self.glass_sprite.bottom + (self.glass_sprite.height * (1 - 0.9) / 2)
+            # Calculate score for the current beer
+            fillable_bottom_y = self.glass_sprite.bottom + (self.glass_sprite.height * self.beer_fillable_bottom_margin_ratio)
             final_beer_top_y = fillable_bottom_y + self.beer_level
-            # Adjust tolerance check to account for line thickness (check if beer top is within the line)
             line_bottom = self.target_line_y - self.target_line_thickness / 2 - self.target_line_tolerance
             line_top = self.target_line_y + self.target_line_thickness / 2 + self.target_line_tolerance
+
             if line_bottom <= final_beer_top_y <= line_top:
-                self.score = 1
-                self.result_text.text = f"Perfect! Score: {self.score}. Press SPACE to exit."
+                self.score = 1 # Score for this attempt
+                attempt_result_text = "Perfect! +1 point."
             else:
-                self.score = 0
-                self.result_text.text = f"Missed! Score: {self.score}. Press SPACE to exit."
+                self.score = 0 # Score for this attempt
+                attempt_result_text = "Missed! +0 points."
+
+            self.round_score += self.score # Add attempt score to round score
+            self.current_beer_index += 1 # Move to the next beer index
+
+            if self.current_beer_index < self.total_beers:
+                # More beers to fill
+                self.game_state = "BETWEEN_BEERS"
+                self.result_text.text = f"{attempt_result_text} Press SPACE for Beer {self.current_beer_index + 1}/{self.total_beers}."
+            else:
+                # All beers filled
+                self.game_state = "ROUND_OVER"
+                self.result_text.text = f"Round Over! Final Score: {self.round_score}/{self.total_beers}. Press SPACE to exit."
 
 
     def return_to_menu(self, final_score):
@@ -186,14 +221,15 @@ class EuropaGame(IGame, arcade.View):
         if key == arcade.key.SPACE:
             if self.game_state == "IDLE":
                 self.start_filling()
-            elif self.game_state == "STOPPED":
-                # User pressed SPACE after stopping, return to menu with calculated score
-                self.return_to_menu(self.score)
+            elif self.game_state == "BETWEEN_BEERS":
+                self.setup_next_beer() # Prepare and start the next beer
+            elif self.game_state == "ROUND_OVER":
+                # User pressed SPACE after the round finished, return to menu with final round score
+                self.return_to_menu(self.round_score)
 
         elif key == arcade.key.ESCAPE:
-            # Allow escaping anytime, return 0 score if escaped early
-            current_score = self.score if self.game_state == "STOPPED" else 0
-            self.return_to_menu(current_score)
+            # Allow escaping anytime, return current round score
+            self.return_to_menu(self.round_score)
 
 
     def on_key_release(self, key, modifiers):

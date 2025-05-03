@@ -58,7 +58,7 @@ class GameMenu(arcade.View):
         self.player2_score = 0
         self.current_player = 1
         self.current_turn = 1
-        self.max_turns = 6
+        self.max_turns = 3
         self.score_text_object = arcade.Text(
             "",
             10, self.window.height - 30 if self.window else 700,

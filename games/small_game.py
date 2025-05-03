@@ -1,5 +1,8 @@
 import arcade
 from games.IGame import IGame
+import random # Import random module
+
+from arcade.types import Color
 
 class SmallGame(IGame, arcade.View):
     def __init__(self):
@@ -13,13 +16,19 @@ class SmallGame(IGame, arcade.View):
 
     def on_key_press(self, key, modifiers):
         if key == arcade.key.ESCAPE:
-            self.window.show_view(self.window.menu_view)
+            # Access the stored menu view instance to return
+            if hasattr(self.window, 'game_menu_view_instance'):
+                self.window.show_view(self.window.game_menu_view_instance)
+            else:
+                print("Error: Could not find game_menu_view_instance on window to return.")
 
     def run(self, window):
-        window.show_view(self)
+        score = random.choice([1, 5])
+        print(f"{self.get_name()} finished, returning score: {score}")
+        return score
 
     def get_name(self):
         return "Small Game"
 
     def get_color(self):
-        return arcade.color.BLUE
+        return Color(254, 0,  0)

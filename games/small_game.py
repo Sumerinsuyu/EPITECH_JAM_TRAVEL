@@ -20,3 +20,6 @@ class SmallGame(IGame, arcade.View):
 
     def get_name(self):
         return "Small Game"
+
+    def get_color(self):
+        return arcade.color.BLUE

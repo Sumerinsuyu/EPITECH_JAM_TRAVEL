@@ -34,7 +34,6 @@ class GameMenu(arcade.View):
             self.color_pil_image = Image.open(self.color_map_path).convert("RGB")
         except FileNotFoundError:
             self.color_pil_image = None
-            print(f"Error: Color map file not found at {self.color_map_path}")
         try:
             self.background_sprite = arcade.Sprite(self.display_map_path)
             self.background_list = arcade.SpriteList()
@@ -44,7 +43,6 @@ class GameMenu(arcade.View):
         except FileNotFoundError:
             self.background_sprite = None
             self.background_list = arcade.SpriteList()
-            print(f"Error: Display map file not found at {self.display_map_path}")
         self.result_text_object = arcade.Text(
             "",
             self.window.width / 2 if self.window else 500,
@@ -56,20 +54,26 @@ class GameMenu(arcade.View):
             multiline=True,
             width=self.window.width - 100 if self.window else 800
         )
+        self.player1_score = 0
+        self.player2_score = 0
+        self.current_player = 1
+        self.current_turn = 1
+        self.max_turns = 6
+        self.score_text_object = arcade.Text(
+            "",
+            10, self.window.height - 30 if self.window else 700,
+            arcade.color.WHITE, font_size=16
+        )
 
     def _create_color_map(self) -> dict[Tuple[int, int, int], IGame]:
         """Creates a dictionary mapping game colors (RGB tuples) to game instances."""
         color_map = {}
-        print("Creating color map:")
         for game in self.playable_games:
             color_tuple = game.get_color()
             if color_tuple:
                  if isinstance(color_tuple, list): color_tuple = tuple(color_tuple)
                  if len(color_tuple) == 4: color_tuple = color_tuple[:3]
-                 print(f"  Mapping color {color_tuple} to game {game.get_name()}")
                  color_map[color_tuple] = game
-            else:
-                 print(f"  Game {game.get_name()} has no color defined.")
         return color_map
 
     def _resize_background(self):
@@ -94,6 +98,10 @@ class GameMenu(arcade.View):
         self.selected_y = None
         self.result_message = None
         self.result_text_object.text = ""
+        self.player1_score = 0
+        self.player2_score = 0
+        self.current_player = 1
+        self.current_turn = 1
         self.horizontal_cursor_pos = random.random()
         self.vertical_cursor_pos = random.random()
         self.horizontal_cursor_direction = random.choice([1, -1])
@@ -139,30 +147,22 @@ class GameMenu(arcade.View):
         self.clear()
         if self.background_list:
             self.background_list.draw()
+
+        self.score_text_object.text = (f"Turn: {self.current_turn}/{self.max_turns} | Player {self.current_player}'s Turn\n"
+                                       f"Player 1 Score: {self.player1_score}\n"
+                                       f"Player 2 Score: {self.player2_score}")
+        self.score_text_object.position = (10, self.window.height - 50)
+        self.score_text_object.draw()
+
         if self.state == "selecting":
             self._draw_horizontal_bar()
             self._draw_vertical_bar()
-        if self.hit_point:
+        if self.hit_point and self.state != "game_over":
             arcade.draw_circle_outline(self.hit_point[0], self.hit_point[1], 15, arcade.color.RED, 3)
             arcade.draw_circle_filled(self.hit_point[0], self.hit_point[1], 5, arcade.color.RED)
         if self.result_message:
             self.result_text_object.position = (self.window.width / 2, self.window.height / 2)
             self.result_text_object.text = self.result_message
-            center_x = self.result_text_object.x
-            center_y = self.result_text_object.y
-            width = self.result_text_object.content_width + 40
-            height = self.result_text_object.content_height + 40
-            left = center_x - width / 2
-            right = center_x + width / 2
-            bottom = center_y - height / 2
-            top = center_y + height / 2
-            arcade.draw_lrbt_rectangle_filled(
-                left=left,
-                right=right,
-                bottom=bottom,
-                top=top,
-                color=(0, 0, 0, 180)
-            )
             self.result_text_object.draw()
 
     def _update_horizontal_cursor(self, delta_time):
@@ -194,7 +194,6 @@ class GameMenu(arcade.View):
     def _calculate_hit_point(self):
         """Calculates the final hit point based on selections and randomness."""
         if not self.window or self.selected_x is None or self.selected_y is None:
-            print("Warning: Cannot calculate hit point, selection missing.")
             return None
         screen_width = self.window.width
         screen_height = self.window.height
@@ -207,16 +206,18 @@ class GameMenu(arcade.View):
         return (final_target_x, final_target_y)
 
     def _perform_throw(self):
-        """Gets the color at the hit point, looks up the game, and sets the result."""
+        """Gets the color at the hit point, looks up the game, updates score, and advances turn."""
         if not self.window or self.hit_point is None:
             self.result_message = "Error: Hit point not calculated."
             self.state = "result_displayed"
             return
+
         screen_width = self.window.width
         screen_height = self.window.height
         final_target_x, final_target_y = self.hit_point
         hit_color_rgb = None
         selected_game = None
+
         if self.color_pil_image:
             try:
                 img_width, img_height = self.color_pil_image.size
@@ -224,26 +225,46 @@ class GameMenu(arcade.View):
                 map_y = max(0, min(img_height - 1, int(((screen_height - final_target_y) / screen_height) * img_height)))
                 hit_color_rgb = self.color_pil_image.getpixel((map_x, map_y))
                 selected_game = self.game_color_map.get(hit_color_rgb)
-                self.state = "result_displayed"
+
                 if selected_game:
-                    print(f"Color {hit_color_rgb} matched! Launching {selected_game.get_name()}...")
-                    self.result_message = f"Hit color {hit_color_rgb}.\nLaunching {selected_game.get_name()}..."
-                    if not hasattr(self.window, 'game_menu_view_instance'):
-                         self.window.game_menu_view_instance = self
-                    selected_game.run(self.window)
+                    score = selected_game.run(self.window)
+
+                    if self.current_player == 1:
+                        self.player1_score += score
+                    else:
+                        self.player2_score += score
+
+                    if self.current_turn >= self.max_turns:
+                        self.state = "game_over"
+                        final_message = f"Game Over!\nPlayer 1 Score: {self.player1_score}\nPlayer 2 Score: {self.player2_score}\n"
+                        if self.player1_score > self.player2_score:
+                            final_message += "Player 1 Wins!"
+                        elif self.player2_score > self.player1_score:
+                            final_message += "Player 2 Wins!"
+                        else:
+                            final_message += "It's a Tie!"
+                        final_message += "\nPress SPACE to play again."
+                        self.result_message = final_message
+                    else:
+                        self.current_turn += 1
+                        self.current_player = 2 if self.current_player == 1 else 1
+                        self.result_message = (f"Player {3 - self.current_player} scored {score}!\n"
+                                               f"Player {self.current_player}'s turn ({self.current_turn}/{self.max_turns}).\n"
+                                               f"Press SPACE to continue selecting.")
+                        self.state = "result_displayed"
+
                 else:
-                    print(f"Hit color {hit_color_rgb}, but no game matches this color.")
-                    self.result_message = f"Hit color {hit_color_rgb}.\nNo game is mapped to this location.\nPress SPACE to try again."
+                    self.result_message = (f"Hit color {hit_color_rgb}.\nNo game is mapped here.\n"
+                                           f"Player {self.current_player} throws again.\nPress SPACE to try again.")
+                    self.state = "result_displayed"
+
             except IndexError:
-                 print("Error: Calculated hit point is outside color map bounds.")
                  self.result_message = "Error: Hit point outside map bounds.\nPress SPACE to try again."
                  self.state = "result_displayed"
             except Exception as e:
-                 print(f"Error getting pixel color or looking up game: {e}")
                  self.result_message = f"An error occurred: {e}\nPress SPACE to try again."
                  self.state = "result_displayed"
         else:
-            print("Cannot get pixel color: Color map image not loaded.")
             self.result_message = "Error: Color map image not loaded.\nCannot determine location.\nPress SPACE to try again."
             self.state = "result_displayed"
 
@@ -259,7 +280,6 @@ class GameMenu(arcade.View):
         self.state = "displaying_hit"
         self.result_message = None
         self.result_text_object.text = ""
-        print("State changed to displaying_hit. Hit point calculated:", self.hit_point)
 
     def on_key_press(self, key, modifiers):
         """Handle key presses based on state."""
@@ -267,13 +287,24 @@ class GameMenu(arcade.View):
             if self.state == "selecting":
                 self._handle_selecting_press()
             elif self.state == "displaying_hit":
-                 print("Space pressed in displaying_hit state. Performing throw...")
                  self._perform_throw()
             elif self.state == "result_displayed":
-                 print("Space pressed in result_displayed state. Resetting...")
+                 self.state = "selecting"
+                 self.hit_point = None
+                 self.selected_x = None
+                 self.selected_y = None
+                 self.result_message = None
+                 self.result_text_object.text = ""
+
+                 self.horizontal_cursor_pos = random.random()
+                 self.vertical_cursor_pos = random.random()
+                 self.horizontal_cursor_direction = random.choice([1, -1])
+                 self.vertical_cursor_direction = random.choice([1, -1])
+                 self.horizontal_cursor_speed = self.horizontal_cursor_speed_base * random.uniform(self.min_speed_factor, self.max_speed_factor)
+                 self.vertical_cursor_speed = self.vertical_cursor_speed_base * random.uniform(self.min_speed_factor, self.max_speed_factor)
+            elif self.state == "game_over":
                  self.reset_state()
         elif key == arcade.key.ESCAPE:
-             print("Escape pressed. Resetting state.")
              self.reset_state()
 
 if __name__ == "__main__":
@@ -281,23 +312,8 @@ if __name__ == "__main__":
         def get_name(self): return "Dummy Blue Game"
         def get_color(self): return (0, 0, 255)
         def run(self, window):
-            print(f"Running {self.get_name()}")
-            view = arcade.View()
-            label = arcade.Text(f"{self.get_name()} Running!\nPress ESC to return to menu.",
-                                window.width / 2, window.height / 2,
-                                arcade.color.WHITE, 20, anchor_x="center")
-            @view.window.event
-            def on_key_press(key, modifiers):
-                if key == arcade.key.ESCAPE:
-                    if hasattr(window, 'game_menu_view_instance'):
-                         window.show_view(window.game_menu_view_instance)
-                    else:
-                         print("Cannot return to menu automatically in test.")
-            @view.window.event
-            def on_draw():
-                view.clear()
-                label.draw()
-            window.show_view(view)
+            return random.choice([0, 5])
+
     test_width = 1024
     test_height = 768
     window = arcade.Window(test_width, test_height, "Game Menu Test")

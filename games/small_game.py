@@ -1,5 +1,6 @@
 import arcade
 from games.IGame import IGame
+import random # Import random module
 
 from arcade.types import Color
 
@@ -22,7 +23,9 @@ class SmallGame(IGame, arcade.View):
                 print("Error: Could not find game_menu_view_instance on window to return.")
 
     def run(self, window):
-        window.show_view(self)
+        score = random.choice([1, 5])
+        print(f"{self.get_name()} finished, returning score: {score}")
+        return score
 
     def get_name(self):
         return "Small Game"

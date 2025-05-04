@@ -1,30 +1,34 @@
 import arcade
+
 from games.IGame import IGame
-from games.europa.europa_game import EuropaGame # Corrected import path
-from games.japan_game.japan_game import JapanGame # Corrected import path
+
+from games.europa.europa_game import EuropaGame
+from games.japan_game.japan_game import JapanGame
+from games.usa_game.usa_game import USAGame
 from games.brazil.brazil_game import BrazilGame
 from games.menu.game_menu import GameMenu
+from games.Antartica.antartica_game import AntarticaGame
+from games.Africa.africa_game import AfricaGame
+from games.IstanbulCat.istanbul_cat import IstanbulCat
+from games.Autralia.australie import AustralieGame
 
 class GameWindow(arcade.Window):
     def __init__(self):
-        # Get screen dimensions for fullscreen
+
         screen_width, screen_height = arcade.get_display_size()
         super().__init__(screen_width, screen_height, "EPITECH JAM TRAVEL", fullscreen=True)
-
-        # Define the list of actual playable games
         self.playable_games = [
             EuropaGame(),
             JapanGame(),
-            BrazilGame()
+            BrazilGame(),
+            USAGame(),
+            AntarticaGame(),
+            AfricaGame(),
+            IstanbulCat(),
+            AustralieGame()
         ]
-
-        # Instantiate the GameMenu, passing the list of games and the window
         self.game_menu_view = GameMenu(self.playable_games, self)
-        # Store the menu view instance on the window for games to access
-        # This is crucial for games to be able to return to the menu
         self.game_menu_view_instance = self.game_menu_view
-
-        # Show the GameMenu view immediately
         self.show_view(self.game_menu_view)
 
 

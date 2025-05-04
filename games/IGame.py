@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 
 class IGame(ABC):
     @abstractmethod
-    def run(self):
-        """Run the game and return the score as an integer."""
+    def run(self, window=None):
+        """Run the game and return the score as an integer. Accepts an optional window argument for compatibility."""
         pass
 
     @abstractmethod

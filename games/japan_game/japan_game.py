@@ -7,6 +7,10 @@ from typing import Tuple
 from games.IGame import IGame
 from arcade.types import Rect
 
+CUT_ZONE_TOP = 150
+CUT_ZONE_BOTTOM = 100
+MARGIN = 65
+
 class JapanGame(IGame, arcade.View):
     def __init__(self):
         super().__init__()
@@ -48,9 +52,10 @@ class JapanGame(IGame, arcade.View):
 
     def run(self, window: arcade.Window) -> int:
         """Run the game and return the score"""
-        window.show_view(self)
         self.setup()
-        return self.score
+        if not hasattr(window, "game_menu_view_instance"):
+            window.game_menu_view_instance = None  # ou mets ton menu ici
+        window.show_view(self)
 
     def setup(self):
         """Initialize game state"""
@@ -122,14 +127,15 @@ class JapanGame(IGame, arcade.View):
             
             self._update_cut_pieces(delta_time)
             
-            if any(100 < sushi.center_y < 150 for sushi in self.sushi_list):
+            
+            if any(CUT_ZONE_BOTTOM - MARGIN < sushi.center_y < CUT_ZONE_TOP + MARGIN for sushi in self.sushi_list):
                 self.rect_color = arcade.color.WHITE
 
     def _update_life_sprites(self):
         """Met à jour les icônes de vies affichées."""
         self.life_sprites = arcade.SpriteList()
         spacing = 10
-        icon_path = os.path.join(self.assets_path, "sakurahealth.png")  # Remplace par ton image
+        icon_path = os.path.join(self.assets_path, "sakurahealth.png")
     
         sample_sprite = arcade.Sprite(icon_path, scale=0.3)
         icon_width = sample_sprite.width
@@ -170,12 +176,27 @@ class JapanGame(IGame, arcade.View):
         if key == arcade.key.SPACE:
             self._attempt_cut()
         elif key == arcade.key.ESCAPE:
+            self._return_to_menu(save_score=False)
+
+    def _return_to_menu(self, save_score: bool = False):
+        """Return to the main game menu. Optionally save the score."""
+        if self.window and hasattr(self.window, "game_menu_view_instance"):
+            print(f"{self.get_name()} finished. Score {'saved' if save_score else 'not saved'}: {self.score}")
+            if save_score:
+                self.window.last_game_score = self.score
+            else:
+                 self.window.last_game_score = 0
             self.window.show_view(self.window.game_menu_view_instance)
+        else:
+            print("Error: Cannot return to menu. Window or menu instance missing.")
+            if self.window:
+                self.window.close()
+
 
     def _attempt_cut(self):
         """Try to cut sushi in the cut zone"""
         for sushi in self.sushi_list:
-            if 100 < sushi.center_y < 150:
+            if 50 < sushi.center_y < 150:
                 self._cut_sushi(sushi)
                 break
 
@@ -183,7 +204,7 @@ class JapanGame(IGame, arcade.View):
         """Cut a sushi into pieces"""
         self.sushi_list.remove(sushi)
         self.score += 1
-        self.sushi_speed += 50
+        self.sushi_speed += 175
 
         left = arcade.Sprite(
             os.path.join(self.assets_path, "sushi_half_left.png"),

@@ -20,7 +20,6 @@ class IstanbulCat(IGame, arcade.View):
         super().__init__()
         self.player = Player("WIWIWI", (200, FLOOR))
         self.player_pos_jump = FLOOR
-        self.isOver = False
         self.background_texture = arcade.load_texture("games/IstanbulCat/assets/istanbul_background.png")
         self.background_rect = create_rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
         self.background_rect2 = Rect(
@@ -38,7 +37,11 @@ class IstanbulCat(IGame, arcade.View):
             self.ennemy.append(Ennemy("WIWIWI", (SCREEN_WIDTH + (i * 400), FLOOR)))
 
     def run(self, window):
+        if self.check_end():
+            self = self.__init__
+            return 5
         window.show_view(self)
+
 
     def get_name(self):
         return "Istanbul Cat"
@@ -53,10 +56,17 @@ class IstanbulCat(IGame, arcade.View):
         self.draw_player()
         self.update_ennemy()
         self.draw_ennemy()
+        self.check_collision()
+        if self.player.is_dead:
+            self.__init__()
+            self.window.show_view(self.window.menu_view)
 
     def on_key_press(self, key, modifiers):
         if key == arcade.key.SPACE and self.player.state == RUN:
             self.player.state = JUMP
+        if key == arcade.key.ESCAPE:
+            self.__init__()
+            self.window.show_view(self.window.menu_view)
 
     def draw_moving_background(self):
         self.background_rect = self.background_rect.move(BG_SPEED, 0)
@@ -89,41 +99,45 @@ class IstanbulCat(IGame, arcade.View):
         arcade.draw_texture_rect(self.background_texture, self.background_rect)
         arcade.draw_texture_rect(self.background_texture, self.background_rect2)
 
-    def draw_player(self):
-        arcade.draw_lbwh_rectangle_filled(
-            self.player.position[0],
-            self.player.position[1],
-            self.player.size[0],
-            self.player.size[1],
-            self.player.color
-        )
-
-    def draw_ennemy(self):
-        for dogs in self.ennemy:
-            arcade.draw_lbwh_rectangle_filled(
-                dogs.position[0],
-                dogs.position[1],
-                dogs.size[0],
-                dogs.size[1],
-                dogs.color
-            )
-
     def update_player(self):
         if self.player.state == JUMP:
             position = list(self.player.position)
             position[1] += 2
-            self.player.position = tuple(position)
+            self.player.move(position[0], position[1])
             if self.player.position[1] >= FLOOR + 100:
                 self.player.state = FALL
         if self.player.state == FALL:
             position = list(self.player.position)
             position[1] -= 2
-            self.player.position = tuple(position)
+            self.player.move(position[0], position[1])
             if self.player.position[1] <= FLOOR:
                 self.player.state = RUN
+
+    def draw_player(self):
+        arcade.draw_texture_rect(self.player.texture, self.player.rect)
+
+    def draw_ennemy(self):
+        for dogs in self.ennemy:
+            arcade.draw_texture_rect(dogs.texture, dogs.rect)
 
     def update_ennemy(self):
         for dogs in self.ennemy:
             position = list(dogs.position)
             position[0] -= 3
-            dogs.position = position
+            dogs.move(position[0], position[1])
+
+    def check_collision(self):
+        for dog in self.ennemy:
+            if (
+                self.player.position[0] < dog.position[0] + dog.size[0] and
+                self.player.position[0] + self.player.size[0] > dog.position[0] and
+                self.player.position[1] < dog.position[1] + dog.size[1] and
+                self.player.position[1] + self.player.size[1] > dog.position[1]
+            ):
+                self.player.is_dead = True
+
+    def check_end(self):
+        for dog in self.ennemy:
+            if dog.position[0] > 0:
+                return False
+        return True

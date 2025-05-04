@@ -93,13 +93,53 @@ class AntarticaGame(IGame, arcade.View):
         fish_sprite.center_y = y
         self.fish_list.append(fish_sprite)
 
+    # --- Return to Menu ---
+    def _return_to_menu(self, save_score: bool = False):
+        """Return to the main game menu. Optionally save the score."""
+        if self.window and hasattr(self.window, "game_menu_view_instance"):
+            print(f"{self.get_name()} finished. Score {'saved' if save_score else 'not saved'}: {self.score}")
+            if save_score:
+                # Use the calculated score based on fish count
+                self.window.last_game_score = self.score
+            else:
+                 # Score is 0 if ESC is pressed or not saving
+                 self.window.last_game_score = 0
+            # Ensure the menu view instance exists before showing it
+            menu_view = getattr(self.window, "game_menu_view_instance", None)
+            if menu_view:
+                self.window.show_view(menu_view)
+            else:
+                print("Error: game_menu_view_instance not found on window.")
+        else:
+            print("Error: Cannot return to menu. Window or menu instance missing.")
+            if self.window:
+                self.window.close() # Fallback: close window if menu is broken
+
     # --- Public API ---
     def get_name(self):
         return self.title
 
     def run(self, window):
+        # Store window reference and setup initial state relative to window size
+        self.window = window
+        self.init_movement() # Re-initialize movement based on actual window size
+        self.init_sprite() # Re-initialize sprite positions
+        self.timer_text.position = (self.window.width - 10, self.window.height - 30)
+        self.fish_text.position = (10, self.window.height - 30)
+        self.score_text.position = (self.window.width // 2, self.window.height - 30)
+        # Reset game state before showing
+        self.timer = 20.0
+        self.fish_count = 0
+        self.score = 0
+        self.game_over = False
+        self.penguin_sprites = [] # Clear previous penguins
+        self.player_list = arcade.SpriteList() # Clear previous list
+        self.fish_list = arcade.SpriteList() # Clear previous fish
+        self.init_sprite() # Recreate head sprite
+        self.init_fish() # Spawn initial fish
+        # Show the view
         window.show_view(self)
-        return self.score
+        # Do not return score here for View-based games
 
     def on_draw(self):
         self.clear()
@@ -183,6 +223,17 @@ class AntarticaGame(IGame, arcade.View):
                 anchor_x="center"
             )
             game_over_text.draw()
+            # Add message to return to menu
+            return_text = arcade.Text(
+                "Press SPACE to return to menu",
+                self.window.width // 2,
+                self.window.height // 2 - 50, # Below game over/win text
+                arcade.color.WHITE,
+                20,
+                anchor_x="center"
+            )
+            return_text.draw()
+
 
     def on_key_press(self, key, modifiers):
         self.handle_key_press(key)
@@ -217,6 +268,7 @@ class AntarticaGame(IGame, arcade.View):
             self.score = new_score
         if self.fish_count >= 15:
             self.game_over = True
+            # Don't return here, let on_draw show the win message and wait for SPACE
 
     def reposition_fish(self, fish_sprite):
         window = self.window or arcade.get_window()
@@ -244,8 +296,12 @@ class AntarticaGame(IGame, arcade.View):
             self.current_frame = 0
             self.frame_timer = 0
         if key == arcade.key.ESCAPE:
-            if hasattr(self.window, 'menu_view'):
-                self.window.show_view(self.window.menu_view)
+            # Return to menu without saving score
+            self._return_to_menu(save_score=False)
+        if self.game_over and key == arcade.key.SPACE:
+             # Return to menu with final score
+            self._return_to_menu(save_score=True)
+
 
     def handle_key_release(self, key):
         if key in self.held_keys:

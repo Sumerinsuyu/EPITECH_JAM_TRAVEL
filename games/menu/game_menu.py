@@ -28,8 +28,8 @@ class GameMenu(arcade.View):
         self.random_offset_std_dev = 30
         self.min_speed_factor = 0.9
         self.max_speed_factor = 1.5
-        self.display_map_path = os.path.join(os.path.dirname(__file__), "assets", "a.png")
-        self.color_map_path = os.path.join(os.path.dirname(__file__), "assets", "a.png")
+        self.display_map_path = os.path.join(os.path.dirname(__file__), "assets", "earthmap.jpg")
+        self.color_map_path = os.path.join(os.path.dirname(__file__), "assets", "backmap2.jpg")
         try:
             self.color_pil_image = Image.open(self.color_map_path).convert("RGB")
         except FileNotFoundError:

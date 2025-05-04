@@ -1,23 +1,40 @@
 import arcade
 from arcade.types import Color
+from games.IGame import IGame
+import time
 
 WIDTH = 800
 HEIGHT = 600
 TITLE = "Test Fenêtre Arcade"
 
-class AustralieGame(arcade.View):
+class AustralieGame(arcade.View, IGame):
     def __init__(self):
         super().__init__()
         self.counter = 10
         self.punch = 0
         self.punch_timer_playeur = 0
         self.punch_timer_kangaroo = 0
-        self.stun_timer_playeur = 0  # Ajout du timer de stun pour le joueur
+        self.stun_timer_playeur = 0
         self.window = arcade.get_window()
         self.keys = set()
-        # HP des deux persos
         self.player_hp = 100
         self.kangaroo_hp = 100
+        self.game_over = False
+        self.game_over_time = 0
+        self.final_score = 0
+
+        # Load background sprite
+        try:
+            self.background_sprite = arcade.Sprite("games/Autralia/assets/sydney.png")
+            self.background_sprite.width = self.window.width
+            self.background_sprite.height = self.window.height
+            self.background_sprite.center_x = self.window.width / 2
+            self.background_sprite.center_y = self.window.height / 2
+            self.background_list = arcade.SpriteList()
+            self.background_list.append(self.background_sprite)
+        except FileNotFoundError:
+            print("Error: Background file not found.")
+            self.background_list = None
 
         self.kangaroo_wait = arcade.Sprite("games/Autralia/assets/kangaroo_wait.png", 0.5)
         self.kangaroo_wait.center_x = 200
@@ -48,18 +65,37 @@ class AustralieGame(arcade.View):
         self.playeur_hit_list = arcade.SpriteList()
         self.playeur_hit_list.append(self.playeur_hit)
 
-        # Sprite décor Sydney (comme un personnage, pas en fond)
-        self.sydney_sprite = arcade.Sprite("games/Autralia/assets/sydney.png", 1.90)
-        self.sydney_sprite.center_x = 755
-        self.sydney_sprite.center_y = 580
-
-        self.sydney_list = arcade.SpriteList()
-        self.sydney_list.append(self.sydney_sprite)
+    def setup(self):
+        """ Reset game state """
+        self.player_hp = 100
+        self.kangaroo_hp = 100
+        self.punch_timer_playeur = 0
+        self.punch_timer_kangaroo = 0
+        self.stun_timer_playeur = 0
+        self.game_over = False
+        self.game_over_time = 0
+        self.final_score = 0
+        # Reset positions
+        self.kangaroo_wait.center_x = 200
+        self.kangaroo_wait.center_y = 300
+        self.kangaroo_hit.center_x = 200
+        self.kangaroo_hit.center_y = 300
+        self.playeur_wait.center_x = self.window.width - 200
+        self.playeur_wait.center_y = 240
+        self.playeur_hit.center_x = self.window.width - 200
+        self.playeur_hit.center_y = 240
+        # Ensure background is sized correctly if window changed
+        if self.background_list:
+            self.background_sprite.width = self.window.width
+            self.background_sprite.height = self.window.height
+            self.background_sprite.center_x = self.window.width / 2
+            self.background_sprite.center_y = self.window.height / 2
 
     def display_end_screen(self):
         # Affiche le résultat si un des deux est mort
         if self.player_hp <= 0:
             arcade.draw_text("LOOSE", self.window.width // 2 - 100, self.window.height // 2, arcade.color.RED, 60)
+            arcade.draw_text("Press SPACE to return to menu", self.window.width // 2, self.window.height // 2 - 50, arcade.color.WHITE, 20, anchor_x="center")
         elif self.kangaroo_hp <= 0:
             # Calcul des points selon la vie restante du joueur
             hp = self.player_hp
@@ -75,14 +111,15 @@ class AustralieGame(arcade.View):
                 points = 5
             else:
                 points = 0
+            self.final_score = points
             arcade.draw_text(f"WIN  {points} point(s)", self.window.width // 2 - 180, self.window.height // 2, arcade.color.GREEN, 60)
+            arcade.draw_text("Press SPACE to return to menu", self.window.width // 2, self.window.height // 2 - 50, arcade.color.WHITE, 20, anchor_x="center")
 
     def on_draw(self):
-        # Affiche le fond blanc
-        arcade.set_background_color(arcade.color.WHITE)
         self.clear()
-        # Affiche le sprite Sydney décor
-        self.sydney_list.draw()
+        # Draw background first
+        if self.background_list:
+            self.background_list.draw()
         # Barres de vie en haut, plus basses et plus grosses, avec bordure noire
         hp_bar_width = int(300 * 1.2)
         hp_bar_height = int(40 * 1.2)
@@ -111,9 +148,15 @@ class AustralieGame(arcade.View):
         else:
             self.kangaroo_wait_list.draw()
         # Affiche le résultat si un des deux est mort
-        self.display_end_screen()
+        if self.game_over:
+            self.display_end_screen()
 
     def on_update(self, delta_time):
+        # Check if game is already over
+        if self.game_over:
+            self.game_over_time += delta_time
+            return
+
         # Décrémente le timer du punch joueur
         if self.punch_timer_playeur > 0:
             self.punch_timer_playeur -= delta_time
@@ -132,6 +175,8 @@ class AustralieGame(arcade.View):
 
         # Arrête le jeu si un des deux est mort (après 5 secondes d'affichage de l'écran de fin)
         if self.player_hp <= 0 or self.kangaroo_hp <= 0:
+            self.game_over = True
+            self.game_over_time = 0
             self.display_end_screen()
             return
 
@@ -190,6 +235,13 @@ class AustralieGame(arcade.View):
             self.kangaroo_hit.center_x = zone_kangaroo_max
 
     def on_key_press(self, symbol, modifiers):
+        if self.game_over:
+            if symbol == arcade.key.SPACE and self.game_over_time > 0.5:
+                self._return_to_menu(save_score=True)
+            elif symbol == arcade.key.ESCAPE:
+                self._return_to_menu(save_score=False)
+            return
+
         self.keys.add(symbol)
         # Animation du coup toujours lancée
         if symbol == arcade.key.SPACE and self.punch_timer_playeur == 0 and self.stun_timer_playeur == 0:
@@ -201,9 +253,9 @@ class AustralieGame(arcade.View):
                 # Recul du kangourou de 50px vers la gauche
                 self.kangaroo_wait.center_x -= 50
                 self.kangaroo_hit.center_x -= 50
-        # Quitter
-        if symbol == arcade.key.M:
-            arcade.close_window()
+        # Quitter (use ESCAPE now for consistency)
+        if symbol == arcade.key.ESCAPE:
+            self._return_to_menu(save_score=False)
         # Déplacement joueur gauche
         if symbol == arcade.key.Q and self.punch_timer_playeur == 0:
             self.playeur_wait.center_x -= 100
@@ -212,6 +264,22 @@ class AustralieGame(arcade.View):
         if symbol == arcade.key.D and self.punch_timer_playeur == 0:
             self.playeur_wait.center_x += 100
             self.playeur_hit.center_x += 100
+
+    def _return_to_menu(self, save_score: bool = False):
+        """Return to the main game menu. Optionally save the score."""
+        if self.window and hasattr(self.window, "game_menu_view_instance"):
+            score_to_save = self.final_score if save_score else 0
+            print(f"{self.get_name()} finished. Score {'saved' if save_score else 'not saved'}: {score_to_save}")
+            self.window.last_game_score = score_to_save
+            menu_view = getattr(self.window, "game_menu_view_instance", None)
+            if menu_view:
+                self.window.show_view(menu_view)
+            else:
+                print("Error: game_menu_view_instance not found on window.")
+        else:
+            print("Error: Cannot return to menu. Window or menu instance missing.")
+            if self.window:
+                self.window.close()
 
     def get_name(self):
         return "Australie Fight"
@@ -222,6 +290,6 @@ class AustralieGame(arcade.View):
     def run(self, window=None):
         if window is None:
             window = self.window if hasattr(self, 'window') else arcade.get_window()
+        self.window = window
+        self.setup()
         window.show_view(self)
-        # Le menu doit gérer la suite, pas de boucle bloquante ici
-        return 1

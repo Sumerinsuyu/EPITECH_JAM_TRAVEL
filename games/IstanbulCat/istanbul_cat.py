@@ -33,6 +33,7 @@ class IstanbulCat(IGame, arcade.View):
             SCREEN_HEIGHT / 2
         )
         self.ennemy = []
+        self.is_ended = False
         for i in range(0, 5):
             self.ennemy.append(Ennemy("WIWIWI", (SCREEN_WIDTH + (i * 400), FLOOR)))
 
@@ -57,8 +58,10 @@ class IstanbulCat(IGame, arcade.View):
         self.update_ennemy()
         self.draw_ennemy()
         self.check_collision()
-        if self.player.is_dead:
+        self.check_end()
+        if self.player.is_dead or self.is_ended:
             self.__init__()
+            print("ouais")
             self.window.show_view(self.window.menu_view)
 
     def on_key_press(self, key, modifiers):
@@ -140,4 +143,5 @@ class IstanbulCat(IGame, arcade.View):
         for dog in self.ennemy:
             if dog.position[0] > 0:
                 return False
+        self.is_ended = True
         return True

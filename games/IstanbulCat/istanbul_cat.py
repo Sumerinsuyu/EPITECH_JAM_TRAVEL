@@ -3,12 +3,13 @@ import arcade
 from arcade.types import Color
 from games.IGame import IGame
 from games.IstanbulCat.player import Player, JUMP, RUN, FALL
+from games.IstanbulCat.ennemy import Ennemy
 from arcade.types import LBWH, LRBT, XYWH, Color, Point2List, Rect, RGBOrA255
 
 SCREEN_WIDTH    = 800
 SCREEN_HEIGHT   = 600
 FLOOR           = 90
-BG_SPEED        = -2
+BG_SPEED        = -1
 
 def create_rect(x, y, width, height):
     return Rect(x, width, height, y, width, height, width / 2, height / 2)
@@ -32,6 +33,9 @@ class IstanbulCat(IGame, arcade.View):
             SCREEN_WIDTH + SCREEN_WIDTH / 2,
             SCREEN_HEIGHT / 2
         )
+        self.ennemy = []
+        for i in range(0, 5):
+            self.ennemy.append(Ennemy("WIWIWI", (SCREEN_WIDTH + (i * 400), FLOOR)))
 
     def run(self, window):
         window.show_view(self)
@@ -47,6 +51,8 @@ class IstanbulCat(IGame, arcade.View):
         self.draw_moving_background()
         self.update_player()
         self.draw_player()
+        self.update_ennemy()
+        self.draw_ennemy()
 
     def on_key_press(self, key, modifiers):
         if key == arcade.key.SPACE and self.player.state == RUN:
@@ -92,6 +98,16 @@ class IstanbulCat(IGame, arcade.View):
             self.player.color
         )
 
+    def draw_ennemy(self):
+        for dogs in self.ennemy:
+            arcade.draw_lbwh_rectangle_filled(
+                dogs.position[0],
+                dogs.position[1],
+                dogs.size[0],
+                dogs.size[1],
+                dogs.color
+            )
+
     def update_player(self):
         if self.player.state == JUMP:
             position = list(self.player.position)
@@ -105,3 +121,9 @@ class IstanbulCat(IGame, arcade.View):
             self.player.position = tuple(position)
             if self.player.position[1] <= FLOOR:
                 self.player.state = RUN
+
+    def update_ennemy(self):
+        for dogs in self.ennemy:
+            position = list(dogs.position)
+            position[0] -= 3
+            dogs.position = position

@@ -15,6 +15,7 @@ class Player:
         self.size = size
         self.state = RUN
         self.color = arcade.color.BLUE
+        self.is_dead = False
 
     def move(self, x: int, y: int):
         self.position = (x, y)

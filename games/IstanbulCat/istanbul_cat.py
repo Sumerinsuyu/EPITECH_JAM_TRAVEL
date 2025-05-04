@@ -5,9 +5,8 @@ from games.IGame import IGame
 from games.IstanbulCat.player import Player, JUMP, RUN, FALL
 from games.IstanbulCat.ennemy import Ennemy
 from arcade.types import LBWH, LRBT, XYWH, Color, Point2List, Rect, RGBOrA255
+from random import randint
 
-SCREEN_WIDTH    = 800
-SCREEN_HEIGHT   = 600
 FLOOR           = 90
 BG_SPEED        = -1
 
@@ -21,21 +20,24 @@ class IstanbulCat(IGame, arcade.View):
         self.player = Player("WIWIWI", (200, FLOOR))
         self.player_pos_jump = FLOOR
         self.background_texture = arcade.load_texture("games/IstanbulCat/assets/istanbul_background.png")
-        self.background_rect = create_rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+        self.window_width = self.window.width
+        self.window_height = self.window.height
+        self.background_rect = create_rect(0, 0, self.window_width, self.window_height)
         self.background_rect2 = Rect(
-            SCREEN_WIDTH,
-            SCREEN_WIDTH * 2,
-            SCREEN_HEIGHT,
+            self.window_width,
+            self.window_width * 2,
+            self.window_height,
             0,
-            SCREEN_WIDTH,
-            SCREEN_HEIGHT,
-            SCREEN_WIDTH + SCREEN_WIDTH / 2,
-            SCREEN_HEIGHT / 2
+            self.window_width,
+            self.window_height,
+            self.window_width + self.window_width / 2,
+            self.window_height / 2
         )
         self.ennemy = []
         self.is_ended = False
+        self.score = 0
         for i in range(0, 5):
-            self.ennemy.append(Ennemy("WIWIWI", (SCREEN_WIDTH + (i * 400), FLOOR)))
+            self.ennemy.append(Ennemy("WIWIWI", (self.window_width + (i * randint(600, 900)), FLOOR)))
 
     def run(self, window):
         if self.check_end():
@@ -61,15 +63,14 @@ class IstanbulCat(IGame, arcade.View):
         self.check_end()
         if self.player.is_dead or self.is_ended:
             self.__init__()
-            print("ouais")
-            self.window.show_view(self.window.menu_view)
+            self._return_to_menu()
 
     def on_key_press(self, key, modifiers):
         if key == arcade.key.SPACE and self.player.state == RUN:
             self.player.state = JUMP
         if key == arcade.key.ESCAPE:
             self.__init__()
-            self.window.show_view(self.window.menu_view)
+            self._return_to_menu()
 
     def draw_moving_background(self):
         self.background_rect = self.background_rect.move(BG_SPEED, 0)
@@ -77,26 +78,26 @@ class IstanbulCat(IGame, arcade.View):
 
         if self.background_rect.right <= 0:
             self.background_rect = Rect(
-            SCREEN_WIDTH,
-            SCREEN_WIDTH * 2,
-            SCREEN_HEIGHT,
+            self.window_width,
+            self.window_width * 2,
+            self.window_height,
             0,
-            SCREEN_WIDTH,
-            SCREEN_HEIGHT,
-            SCREEN_WIDTH + SCREEN_WIDTH / 2,
-            SCREEN_HEIGHT / 2
+            self.window_width,
+            self.window_height,
+            self.window_width + self.window_width / 2,
+            self.window_height / 2
         )
 
         if self.background_rect2.right <= 0:
             self.background_rect2 = Rect(
-            SCREEN_WIDTH,
-            SCREEN_WIDTH * 2,
-            SCREEN_HEIGHT,
+            self.window_width,
+            self.window_width * 2,
+            self.window_height,
             0,
-            SCREEN_WIDTH,
-            SCREEN_HEIGHT,
-            SCREEN_WIDTH + SCREEN_WIDTH / 2,
-            SCREEN_HEIGHT / 2
+            self.window_width,
+            self.window_height,
+            self.window_width + self.window_width / 2,
+            self.window_height / 2
         )
 
         arcade.draw_texture_rect(self.background_texture, self.background_rect)
@@ -105,13 +106,13 @@ class IstanbulCat(IGame, arcade.View):
     def update_player(self):
         if self.player.state == JUMP:
             position = list(self.player.position)
-            position[1] += 2
+            position[1] += 4
             self.player.move(position[0], position[1])
-            if self.player.position[1] >= FLOOR + 100:
+            if self.player.position[1] >= FLOOR + 200:
                 self.player.state = FALL
         if self.player.state == FALL:
             position = list(self.player.position)
-            position[1] -= 2
+            position[1] -= 4
             self.player.move(position[0], position[1])
             if self.player.position[1] <= FLOOR:
                 self.player.state = RUN
@@ -126,7 +127,7 @@ class IstanbulCat(IGame, arcade.View):
     def update_ennemy(self):
         for dogs in self.ennemy:
             position = list(dogs.position)
-            position[0] -= 3
+            position[0] -= 6
             dogs.move(position[0], position[1])
 
     def check_collision(self):
@@ -144,4 +145,26 @@ class IstanbulCat(IGame, arcade.View):
             if dog.position[0] > 0:
                 return False
         self.is_ended = True
+        self.score = 5
         return True
+
+    def _return_to_menu(self, save_score: bool = False):
+        """Return to the main game menu. Optionally save the score."""
+        if self.window and hasattr(self.window, "game_menu_view_instance"):
+            print(f"{self.get_name()} finished. Score {'saved' if save_score else 'not saved'}: {self.score}")
+            if save_score:
+                # Use the calculated score based on fish count
+                self.window.last_game_score = self.score
+            else:
+                 # Score is 0 if ESC is pressed or not saving
+                 self.window.last_game_score = 0
+            # Ensure the menu view instance exists before showing it
+            menu_view = getattr(self.window, "game_menu_view_instance", None)
+            if menu_view:
+                self.window.show_view(menu_view)
+            else:
+                print("Error: game_menu_view_instance not found on window.")
+        else:
+            print("Error: Cannot return to menu. Window or menu instance missing.")
+            if self.window:
+                self.window.close() # Fallback: close window if menu is broken

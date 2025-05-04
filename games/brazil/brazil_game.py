@@ -42,7 +42,19 @@ class GameOverView(arcade.View):
         arcade.Text(f"Final Score: {self.final_score}", self.window.width/2, self.window.height/2,
                          arcade.color.WHITE, 20, anchor_x="center").draw()
     def on_key_press(self, key, modifiers):
-        self.window.close()
+        if self.window and hasattr(self.window, "game_menu_view_instance"):
+            print(f"Brazil Game finished (Game Over). Score: {self.final_score}")
+            self.window.last_game_score = self.final_score
+            menu_view = getattr(self.window, "game_menu_view_instance", None)
+            if menu_view:
+                self.window.show_view(menu_view)
+            else:
+                print("Error: game_menu_view_instance not found on window.")
+                self.window.close() # Fallback
+        else:
+            print("Error: Cannot return to menu. Window or menu instance missing.")
+            if self.window:
+                self.window.close() # Fallback
 
 
 class VictoryView(arcade.View):
@@ -57,7 +69,19 @@ class VictoryView(arcade.View):
         arcade.Text(f"Final Score: {self.final_score}", self.window.width/2, self.window.height/2,
                          arcade.color.WHITE, 20, anchor_x="center").draw()
     def on_key_press(self, key, modifiers):
-        self.window.close()
+        if self.window and hasattr(self.window, "game_menu_view_instance"):
+            print(f"Brazil Game finished (Victory). Score: {self.final_score}")
+            self.window.last_game_score = self.final_score
+            menu_view = getattr(self.window, "game_menu_view_instance", None)
+            if menu_view:
+                self.window.show_view(menu_view)
+            else:
+                print("Error: game_menu_view_instance not found on window.")
+                self.window.close() # Fallback
+        else:
+            print("Error: Cannot return to menu. Window or menu instance missing.")
+            if self.window:
+                self.window.close() # Fallback
 
 
 class Player(arcade.Sprite):
@@ -122,32 +146,32 @@ class BrazilGame(IGame, arcade.View):
         self.sprite_list = arcade.SpriteList()
         self.enemy_list = arcade.SpriteList()
         self.background_list = arcade.SpriteList()
-        
+
         self.background = arcade.Sprite('games/brazil/assets/background/background.png')
         self.background.center_x = self.window.width / 2
         self.background.center_y = self.window.height / 2
         self.background.width = self.window.width
         self.background.height = self.window.height
         self.background_list.append(self.background)
-        
+
         player_idle_sheet = arcade.load_spritesheet('games/brazil/assets/fighter/idle.png')
         idle_list = player_idle_sheet.get_texture_grid(size=(100, 100), columns=IDLE_COLS, count=IDLE_COLS*ROWS)
         player_kick_sheet = arcade.load_spritesheet('games/brazil/assets/fighter/front_kick.png')
         kick_list = player_kick_sheet.get_texture_grid(size=(100, 100), columns=IDLE_COLS, count=IDLE_COLS*ROWS)
-        
+
         self.player = Player(idle_list + kick_list)
         self.player.position = 500, 400
-        
+
         capybara_sheet = arcade.load_spritesheet('games/brazil/assets/capybara/capybara.png')
         self.capybara_list = capybara_sheet.get_texture_grid(size=(64, 64), columns=WALK_COLS, count=WALK_COLS*WALK_ROWS)
-        
+
         self.sprite_list.append(self.background)
         self.sprite_list.append(self.player)
 
     def spawn_enemy(self):
         from_left = random.choice([True, False])
         enemy = Enemy(self.capybara_list)
-        
+
         if from_left:
             enemy.center_x = -CAPYBARA_SIZE
             enemy.change_x = ENEMY_SPEED
@@ -158,7 +182,7 @@ class BrazilGame(IGame, arcade.View):
 
         enemy.center_y = self.window.height // 4
         self.enemy_list.append(enemy)
-        
+
     def on_update(self, delta_time):
         if random.randrange(10000) % 127 == 0:
             self.spawn_enemy()
@@ -169,8 +193,9 @@ class BrazilGame(IGame, arcade.View):
         for hit in hit_list:
             hit.remove_from_sprite_lists()
             if self.player.is_at_the_end_of_kick():
-                self.score += .5
-                if self.score == 5:
+                self.score += 1 # Increased score increment from 0.5 to 1
+                if self.score >= 5: # Check if score reached or exceeded 5
+                    self.score = 5 # Cap score at 5
                     self.window.show_view(VictoryView(self.score))
             else:
                 self.hp -= 1

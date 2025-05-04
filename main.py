@@ -1,4 +1,5 @@
 import arcade
+
 from games.IGame import IGame
 from games.europa.europa_game import EuropaGame
 from games.japan_game.japan_game import JapanGame
@@ -6,6 +7,7 @@ from games.usa_game.usa_game import USAGame
 from games.menu.game_menu import GameMenu
 from games.Antartica.antartica_game import AntarticaGame
 from games.Africa.africa_game import AfricaGame
+from games.IstanbulCat.istanbul_cat import IstanbulCat
 
 class GameWindow(arcade.Window):
     def __init__(self):
@@ -18,6 +20,7 @@ class GameWindow(arcade.Window):
             USAGame(),
             AntarticaGame(),
             AfricaGame(),
+            IstanbulCat()
         ]
         self.game_menu_view = GameMenu(self.playable_games, self)
         self.game_menu_view_instance = self.game_menu_view

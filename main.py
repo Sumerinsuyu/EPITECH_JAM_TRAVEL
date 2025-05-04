@@ -1,9 +1,11 @@
 import arcade
 
 from games.IGame import IGame
+
 from games.europa.europa_game import EuropaGame
 from games.japan_game.japan_game import JapanGame
 from games.usa_game.usa_game import USAGame
+from games.brazil.brazil_game import BrazilGame
 from games.menu.game_menu import GameMenu
 from games.Antartica.antartica_game import AntarticaGame
 from games.Africa.africa_game import AfricaGame
@@ -18,6 +20,7 @@ class GameWindow(arcade.Window):
         self.playable_games = [
             EuropaGame(),
             JapanGame(),
+            BrazilGame(),
             USAGame(),
             AntarticaGame(),
             AfricaGame(),

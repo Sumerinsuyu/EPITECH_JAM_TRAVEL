@@ -2,6 +2,7 @@ import arcade
 from games.IGame import IGame
 from games.europa.europa_game import EuropaGame # Corrected import path
 from games.japan_game.japan_game import JapanGame # Corrected import path
+from games.brazil.brazil_game import BrazilGame
 from games.menu.game_menu import GameMenu
 
 class GameWindow(arcade.Window):
@@ -13,7 +14,8 @@ class GameWindow(arcade.Window):
         # Define the list of actual playable games
         self.playable_games = [
             EuropaGame(),
-            JapanGame()
+            JapanGame(),
+            BrazilGame()
         ]
 
         # Instantiate the GameMenu, passing the list of games and the window

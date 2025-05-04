@@ -1,0 +1,1 @@
+from .antartica_game import AntarticaGame
